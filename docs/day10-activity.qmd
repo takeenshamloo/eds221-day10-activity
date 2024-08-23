@@ -1,0 +1,105 @@
+---
+title: "Day 10: Activity"
+author: "Takeen Shamloo"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## Day 10: Activity
+
+```{r}
+library(tidyverse)
+library(here)
+library(janitor)
+```
+
+### Load in data
+
+```{r}
+meteorological_data <- read_csv(here("data", "ntl20_v6.csv")) |>
+  clean_names()
+
+ice_duration_data <- read_csv(here("data", "ntl33_v7.csv"), na = c("-999", "")) |>
+  clean_names()
+```
+
+### Plot Ice Duration across different Lakes
+
+```{r}
+lake_mean_duration <- ice_duration_data |> 
+  group_by(lakeid) |> 
+  summarise(mean_duration = mean(ice_duration, na.rm = TRUE))
+
+ggplot(ice_duration_data, aes(x = lakeid, y = ice_duration, color = lakeid)) +
+  labs(y = "Ice Duration") +
+  geom_jitter() +
+  geom_hline(data = lake_mean_duration, aes(yintercept = mean_duration), 
+             color = c("red", "green", "blue"), size = 1)
+```
+
+### Plot mean ice duration in each lake area by year
+
+```{r}
+yearly_mean_ice_duration <- ice_duration_data |> 
+  group_by(year4, lakeid) |> 
+  summarise(mean_duration = mean(ice_duration, na.rm = TRUE)) |>
+  filter(!is.nan(mean_duration))
+
+ggplot(ice_duration_data, aes(x = year4, y = ice_duration, color = lakeid)) +
+  geom_line(data = yearly_mean_ice_duration, aes(x = year4, y = mean_duration), 
+            color = "pink", size = 1) + 
+  geom_jitter() +
+  labs(y = "Ice Duration", title = "Ice Duration and Yearly Means in Madison Lake Area") +
+  facet_wrap(~ lakeid) 
+```
+
+The ice at the lake denoted by "WI" has the greatest average which is around
+10 units above the other two averages. Likewise "MO" and "ME" are very similar 
+with lake "MO" slightly exceeding "ME" by a unit or two.
+
+### Plot Mean Air Temp
+
+```{r}
+mean_winter_temp_data <- meteorological_data |> 
+  filter(month %in% c(1, 2, 12)) |> 
+  group_by(year4) |> 
+  summarise(mean_winter_temp = mean(ave_air_temp_adjusted, na.rm = TRUE))
+
+ggplot(mean_winter_temp_data, aes(x = year4, y = mean_winter_temp)) +
+  geom_line(color = "blue") +
+  geom_point(color = "red") +
+  labs(y = "Mean Winter Temperature (°C)", x = "Year", 
+       title = "Mean Winter Temperatures in Madison Lake Area by Year") +
+  theme_minimal()
+```
+
+```{r}
+joined_data <- left_join(mean_winter_temp_data, yearly_mean_ice_duration, by = "year4")
+
+ggplot(joined_data, aes(x = mean_winter_temp, y = mean_duration)) +
+  geom_point(color = "green", size = 2) +
+  geom_smooth(method = "lm", color = "red") +
+  labs(y = "Mean Ice Duration (days)", x = "Mean Winter Temperature (°C)",
+       title = "Relationship Between Mean Winter Temperature and Ice Duration") +
+  theme_minimal()
+```
+
+```{r}
+library(lubridate)
+
+# Subset data since 1970 and calculate ice-off day of the year
+thaw_data <- ice_duration_data |> 
+  filter(year4 >= 1970) |> 
+  mutate(ice_off_day = yday(ice_off))
+
+# Create a plot for the ice-off day from 1970 to present
+ggplot(thaw_data, aes(x = year4, y = ice_off_day)) +
+  geom_point(color = "blue", size = 2) +
+  geom_smooth(method = "loess", color = "red") +
+  labs(y = "Day of the Year (Ice Off)", x = "Year",
+       title = "Ice Off Day by Year (1970 - Present)") +
+  theme_minimal()
+```
+
+
